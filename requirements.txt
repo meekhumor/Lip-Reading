@@ -1,6 +1,6 @@
 --find-links https://pypi.anaconda.org/menpo/simple
 dlib==19.24.6
-matplotlib==3.10.0
+matplotlib>=3.9.0
 matplotlib-inline==0.1.7
 numpy>=1.26.0
 scikit-image==0.25.2
