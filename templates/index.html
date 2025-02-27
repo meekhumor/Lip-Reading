@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lip Reading Application</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #video-container {
+            margin-bottom: 20px;
+        }
+        #video {
+            width: 100%;
+            border: 1px solid #ddd;
+            transform: scaleX(-1); /* Mirror the video horizontally */
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #status {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .prediction-bar {
+            height: 20px;
+            background-color: #4CAF50;
+            margin-bottom: 5px;
+        }
+        #sequence-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f5f5f5;
+        }
+        .sequence-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border: 1px solid #ccc;
+        }
+        #countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: white;
+            background-color: rgba(0,0,0,0.5);
+            padding: 20px;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Lip Reading Application</h1>
+    
+    <div id="video-container" style="position: relative;">
+        <video id="video" autoplay></video>
+        <div id="countdown" style="display: none;">3</div>
+    </div>
+    
+    <div>
+        <button id="start-btn">Start Recording</button>
+        <button id="stop-btn" disabled>Stop Recording</button>
+    </div>
+    
+    <div id="status">Ready to record</div>
+    
+    <div id="result" style="display: none;">
+        <h2>Prediction Results</h2>
+        <div id="main-prediction"></div>
+        
+        <h3>Processed Lip Sequence</h3>
+        <div id="sequence-container"></div>
+        
+        <h3>All Predictions</h3>
+        <div id="all-predictions"></div>
+    </div>
+    
+    <script>
+        const video = document.getElementById('video');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+        const mainPredictionDiv = document.getElementById('main-prediction');
+        const allPredictionsDiv = document.getElementById('all-predictions');
+        const sequenceContainer = document.getElementById('sequence-container');
+        const countdownDiv = document.getElementById('countdown');
+        
+        let mediaRecorder;
+        let recordedFrames = [];
+        let recording = false;
+        let recordingInterval;
+        
+        // Set up video stream
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false
+                });
+                video.srcObject = stream;
+                return stream;
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                statusDiv.textContent = 'Error accessing camera. Please check permissions.';
+                return null;
+            }
+        }
+        
+        // Capture frame from video
+        function captureFrame() {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            // No need to flip the frame here since it will be processed on the server side
+            ctx.drawImage(video, 0, 0);
+            return canvas.toDataURL('image/jpeg');
+        }
+        
+        // Start recording with countdown
+        startBtn.addEventListener('click', () => {
+            if (!video.srcObject) {
+                setupCamera().then(stream => {
+                    if (stream) startCountdown();
+                });
+            } else {
+                startCountdown();
+            }
+        });
+        
+        // Countdown function
+        function startCountdown() {
+            startBtn.disabled = true;
+            let count = 3;
+            countdownDiv.textContent = count;
+            countdownDiv.style.display = 'flex';
+            
+            const countInterval = setInterval(() => {
+                count--;
+                if (count <= 0) {
+                    clearInterval(countInterval);
+                    countdownDiv.style.display = 'none';
+                    startRecording();
+                } else {
+                    countdownDiv.textContent = count;
+                }
+            }, 1000);
+        }
+        
+        function startRecording() {
+            recordedFrames = [];
+            recording = true;
+            stopBtn.disabled = false;
+            statusDiv.textContent = 'Recording...';
+            resultDiv.style.display = 'none';
+            
+            // Capture frames at 10fps
+            recordingInterval = setInterval(() => {
+                if (recording) {
+                    recordedFrames.push(captureFrame());
+                }
+            }, 100);
+        }
+        
+        // Stop recording
+        stopBtn.addEventListener('click', () => {
+            recording = false;
+            clearInterval(recordingInterval);
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusDiv.textContent = 'Processing...';
+            
+            // Send frames to server
+            fetch('/process_video', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ frames: recordedFrames })
+            })
+            .then(response => response.json())
+            .then(data => {
+                statusDiv.textContent = 'Ready to record';
+                displayResults(data);
+            })
+            .catch(err => {
+                console.error('Error processing video:', err);
+                statusDiv.textContent = 'Error processing video';
+            });
+        });
+        
+        // Display results
+        function displayResults(data) {
+            if (data.error) {
+                statusDiv.textContent = data.error;
+                return;
+            }
+            
+            resultDiv.style.display = 'block';
+            mainPredictionDiv.innerHTML = `<h3>Predicted Word: ${data.word} (${data.confidence.toFixed(2)}%)</h3>`;
+            
+            // Display sequence images
+            sequenceContainer.innerHTML = '';
+            if (data.sequence_images && data.sequence_images.length > 0) {
+                data.sequence_images.forEach((imgSrc, index) => {
+                    const img = document.createElement('img');
+                    img.src = imgSrc;
+                    img.className = 'sequence-image';
+                    img.alt = `Lip frame ${index + 1}`;
+                    sequenceContainer.appendChild(img);
+                });
+            } else {
+                sequenceContainer.innerHTML = '<p>No sequence images available</p>';
+            }
+            
+            // Display all predictions
+            allPredictionsDiv.innerHTML = '';
+            data.predictions.forEach(([word, confidence]) => {
+                const predDiv = document.createElement('div');
+                predDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                        <div style="width: 100px;">${word}:</div>
+                        <div style="width: ${confidence}%; height: 20px; background-color: #4CAF50; margin-right: 10px;"></div>
+                        <div>${confidence.toFixed(2)}%</div>
+                    </div>
+                `;
+                allPredictionsDiv.appendChild(predDiv);
+            });
+        }
+        
+        // Initialize camera on page load
+        setupCamera();
+    </script>
+</body>
+</html>
