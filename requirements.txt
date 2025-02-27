@@ -1,5 +1,4 @@
---prefer-binary
-dlib==19.24.2
+dlib-bin
 matplotlib>=3.9.0
 numpy>=1.26.0
 scikit-image==0.24.0
