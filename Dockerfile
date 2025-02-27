@@ -7,6 +7,10 @@ WORKDIR /app
 # Copy project files
 COPY . .
 
+# Upgrade pip before installing dependencies
+RUN pip install --upgrade pip
+
+
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
