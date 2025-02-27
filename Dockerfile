@@ -15,11 +15,6 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip before installing Python dependencies
-RUN pip install --upgrade pip
-
-# Install dlib first to avoid conflicts
-RUN pip install dlib==19.24.2 --no-cache-dir
 
 # Set working directory
 WORKDIR /app
