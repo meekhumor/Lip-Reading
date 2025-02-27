@@ -1,16 +1,5 @@
-# Use a base image with necessary system dependencies
-FROM python:3.9
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    cmake \
-    build-essential \
-    libopenblas-dev \
-    liblapack-dev \
-    libx11-dev \
-    libgtk-3-dev \
-    libboost-all-dev \
-    python3-dev
+# Use a pre-built image with Python, Dlib, and OpenCV
+FROM jhonatans01/python-dlib-opencv
 
 # Set working directory
 WORKDIR /app
@@ -21,8 +10,8 @@ COPY . .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port
+# Expose application port (if needed)
 EXPOSE 5000
 
 # Run the application
-CMD ["python", "app.py"]
+CMD ["python3", "app.py"]
